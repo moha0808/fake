@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto-Capture Webcam - Educational</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f8ff;
+        }
+        
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        
+        #video {
+            width: 100%;
+            max-width: 400px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: none;
+        }
+        
+        #capturedImage {
+            width: 100%;
+            max-width: 400px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: none;
+        }
+        
+        input, button {
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            color: #666;
+            font-style: italic;
+            margin: 10px 0;
+        }
+        
+        .warning {
+            color: #ff6b6b;
+            font-weight: bold;
+            background-color: #fff0f0;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ff6b6b;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎂 Educational Auto-Capture Webcam 🎂</h1>
+        
+        <div class="warning">
+            ⚠️ FOR EDUCATIONAL PURPOSES ONLY ⚠️<br>
+            Always get permission before accessing webcams
+        </div>
+        
+        <div id="setupSection">
+            <h3>Step 1: Setup</h3>
+            <button id="startWebcamBtn">Start Webcam</button>
+            <div id="webcamStatus" class="status">Webcam not started</div>
+        </div>
+        
+        <div id="messageSection" class="hidden">
+            <h3>Step 2: Enter Birthday Message</h3>
+            <input type="text" id="birthdayMessage" placeholder="Enter birthday message..." />
+            <button id="setMessageBtn">Set Message & Auto-Capture</button>
+            <div id="messageStatus" class="status">No message set</div>
+        </div>
+        
+        <div id="captureSection" class="hidden">
+            <h3>Live Webcam</h3>
+            <video id="video" autoplay playsinline></video>
+            
+            <h3>Last Capture</h3>
+            <img id="capturedImage" alt="Captured image will appear here">
+            <div id="captureStatus" class="status">No captures yet</div>
+            
+            <button id="stopBtn">Stop Auto-Capture</button>
+            <button id="downloadBtn" disabled>Download Last Image</button>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const startWebcamBtn = document.getElementById('startWebcamBtn');
+        const setMessageBtn = document.getElementById('setMessageBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const capturedImage = document.getElementById('capturedImage');
+        const birthdayMessageInput = document.getElementById('birthdayMessage');
+        
+        const webcamStatus = document.getElementById('webcamStatus');
+        const messageStatus = document.getElementById('messageStatus');
+        const captureStatus = document.getElementById('captureStatus');
+        
+        const setupSection = document.getElementById('setupSection');
+        const messageSection = document.getElementById('messageSection');
+        const captureSection = document.getElementById('captureSection');
+
+        let stream = null;
+        let captureInterval = null;
+        let lastCaptureData = null;
+        let isCapturing = false;
+
+        // Start webcam
+        startWebcamBtn.addEventListener('click', async () => {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 640, height: 480 },
+                    audio: false 
+                });
+                
+                video.srcObject = stream;
+                video.style.display = 'block';
+                
+                webcamStatus.textContent = "✅ Webcam active";
+                startWebcamBtn.disabled = true;
+                
+                // Show message section
+                messageSection.classList.remove('hidden');
+                
+            } catch (error) {
+                console.error('Error accessing webcam:', error);
+                webcamStatus.textContent = "❌ Error: " + error.message;
+            }
+        });
+
+        // Set message and start auto-capture
+        setMessageBtn.addEventListener('click', () => {
+            const message = birthdayMessageInput.value.trim();
+            
+            if (!message) {
+                messageStatus.textContent = "❌ Please enter a message";
+                return;
+            }
+            
+            if (!stream) {
+                messageStatus.textContent = "❌ Webcam not started";
+                return;
+            }
+            
+            messageStatus.textContent = `✅ Message set: "${message}"`;
+            setMessageBtn.disabled = true;
+            birthdayMessageInput.disabled = true;
+            
+            // Show capture section
+            captureSection.classList.remove('hidden');
+            
+            // Start auto-capture
+            startAutoCapture(message);
+        });
+
+        // Start automatic capturing
+        function startAutoCapture(message) {
+            if (isCapturing) return;
+            
+            isCapturing = true;
+            captureStatus.textContent = "🟢 Auto-capture active (every 5 seconds)";
+            
+            // Capture immediately
+            captureImage(message);
+            
+            // Set interval for continuous capturing
+            captureInterval = setInterval(() => {
+                captureImage(message);
+            }, 5000); // Capture every 5 seconds
+        }
+
+        // Capture image
+        function captureImage(message) {
+            if (!stream) return;
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            
+            // Draw video frame
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Add message to image
+            ctx.font = '30px Arial';
+            ctx.fillStyle = 'red';
+            ctx.textAlign = 'center';
+            ctx.fillText(message, canvas.width / 2, 50);
+            ctx.fillText('🎂', canvas.width / 2, 100);
+            
+            // Convert to data URL
+            const dataUrl = canvas.toDataURL('image/png');
+            
+            // Display captured image
+            capturedImage.src = dataUrl;
+            capturedImage.style.display = 'block';
+            lastCaptureData = dataUrl;
+            
+            // Enable download button
+            downloadBtn.disabled = false;
+            
+            // Update status
+            const now = new Date().toLocaleTimeString();
+            captureStatus.textContent = `✅ Captured at ${now}`;
+            
+            // Send to server (optional)
+            sendToServer(dataUrl, message);
+        }
+
+        // Send image to Python server
+        function sendToServer(dataUrl, message) {
+            fetch('/capture', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    image: dataUrl,
+                    message: message,
+                    timestamp: new Date().toISOString()
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Server response:', data);
+            })
+            .catch(error => {
+                console.error('Error sending to server:', error);
+            });
+        }
+
+        // Download image
+        downloadBtn.addEventListener('click', () => {
+            if (!lastCaptureData) return;
+            
+            const link = document.createElement('a');
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            link.download = `auto-capture-${timestamp}.png`;
+            link.href = lastCaptureData;
+            link.click();
+        });
+
+        // Stop auto-capture
+        stopBtn.addEventListener('click', () => {
+            if (captureInterval) {
+                clearInterval(captureInterval);
+                captureInterval = null;
+            }
+            
+            isCapturing = false;
+            captureStatus.textContent = "⏹️ Auto-capture stopped";
+            
+            // Reset buttons
+            setMessageBtn.disabled = false;
+            birthdayMessageInput.disabled = false;
+        });
+
+        // Clean up
+        window.addEventListener('beforeunload', () => {
+            if (captureInterval) {
+                clearInterval(captureInterval);
+            }
+            
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        });
+    </script>
+</body>
+</html>
